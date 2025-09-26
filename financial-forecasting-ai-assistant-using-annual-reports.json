@@ -1,0 +1,583 @@
+{
+  "name": "financial_forecast_assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        704
+      ],
+      "id": "0de84471-1311-47ab-9cc3-b220c7bc7583",
+      "name": "DeepSeek Chat Model",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "ViYmhrE7oBlhugDs",
+          "name": "DeepSeek account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        624,
+        1520
+      ],
+      "id": "c1112919-98f3-4cfd-89a7-0600fec079da",
+      "name": "DeepSeek Chat Model1",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "ViYmhrE7oBlhugDs",
+          "name": "DeepSeek account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        768,
+        1520
+      ],
+      "id": "66db28c6-4c09-4c9b-a230-2814f5e719a6",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        816,
+        512
+      ],
+      "id": "82c31d3a-04ed-4418-a94f-3b9785b399b1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        496
+      ],
+      "id": "ea150243-365d-4456-8cb6-6cfffe879678",
+      "name": "Manual Start"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "'17tCD0it4O10ViJbGrEy7X0gED6PpGgQi' in parents and mimeType='application/pdf'"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        496
+      ],
+      "id": "b8b4cf7b-2a6e-40d6-aef1-6a0304429d85",
+      "name": "List Drive PDFs",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "7xqqD3WgQNvOvfhD",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = items[0].json.files || [];\nreturn files.map(f => ({ json: f }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        496
+      ],
+      "id": "03abbaf2-69ae-493c-8de1-46d7cd4dbb49",
+      "name": "Format File List"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        368,
+        496
+      ],
+      "id": "34293b9a-ac6b-4e6b-bb07-32c74dbff4ee",
+      "name": "For Each File"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        576,
+        400
+      ],
+      "id": "db5bee5b-a588-4d29-9622-886013e4bc46",
+      "name": "Download PDF",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "7xqqD3WgQNvOvfhD",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 80
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1104,
+        496
+      ],
+      "id": "3f0da69c-f16e-4eca-8f9a-1d42b6a9411d",
+      "name": "Extract Text"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a financial analyst. Summarize this annual report {{ $json.text }} into a concise, structured format.\n\nKeep each section short, use bullet points or numbers where possible. If a section is not mentioned, write \"Not available\".\n\n**Year:**  \n**Revenue:**  \n**Operating Income / EBIT:**  \n**Net Income:**  \n**EPS:**  \n**Cash Flow:**  \n**Other Key Metrics (e.g., Debt, Equity, Dividends):**\n\n**Management Guidance:**  \n- Summarize any forward-looking statements, outlook, or guidance given by management.  \n\n**Key Events / Strategic Actions:**  \n- E.g., acquisitions, restructurings, new product launches, regulatory changes.\n\n**Risks / Challenges Noted:**  \n- Key risks or uncertainties highlighted in the report.\n\nKeep the total output under ~300 words.",
+        "options": {
+          "systemMessage": "You are a professional financial analyst specializing in corporate financial analysis.\n\nYour task:\n- Analyze the company’s annual reports (provided in the input).\n- Extract structured historical financial data (Revenue, Operating Income, Net Income, EPS, Cash Flow, etc.).\n- Identify and summarize any management guidance, commentary, or forward-looking statements."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1392,
+        496
+      ],
+      "id": "5b425eba-bf9a-4860-b296-11756832319d",
+      "name": "Summarize Article"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst processedData = items.map((item) => {\n  try {\n    // Get AI response text (support multiple formats)\n    let aiSummary = '';\n    if (item.json.response?.message?.content) {\n      aiSummary = item.json.response.message.content;\n    } else if (item.json.message?.content) {\n      aiSummary = item.json.message.content;\n    } else if (item.json.output) {\n      aiSummary = item.json.output;\n    } else {\n      aiSummary = JSON.stringify(item.json);\n    }\n\n    // Helper function: extract text between labels\n    function extract(label, text = aiSummary) {\n      const regex = new RegExp(`\\\\*\\\\*${label}:\\\\*\\\\*\\\\s*([\\\\s\\\\S]*?)(?=\\\\n\\\\n|\\\\n\\\\*\\\\*|$)`, \"i\");\n      const match = text.match(regex);\n      return match ? match[1].trim() : \"Not found\";\n    }\n\n    // Extract fields (renamed for financials)\n    const year = extract(\"Year\");\n    const revenue = extract(\"Revenue\");\n    const ebit = extract(\"Operating Income / EBIT\");\n    const netIncome = extract(\"Net Income\");\n    const eps = extract(\"EPS\");\n    const cashFlow = extract(\"Cash Flow\");\n    const otherMetrics = extract(\"Other Key Metrics\");\n    const guidance = extract(\"Management Guidance\");\n    const keyEvents = extract(\"Key Events / Strategic Actions\");\n    const risks = extract(\"Risks / Challenges Noted\");\n\n    return {\n      year: year,\n      revenue: revenue,\n      ebit: ebit,\n      net_income: netIncome,\n      eps: eps,\n      cash_flow: cashFlow,\n      other_metrics: otherMetrics,\n      guidance: guidance,\n      key_events: keyEvents,\n      risks: risks,\n      full_summary: aiSummary,\n      processing_date: new Date().toISOString(),\n      _debug: {\n        summary_length: aiSummary.length,\n        has_year: year !== \"Not found\",\n        has_revenue: revenue !== \"Not found\"\n      }\n    };\n\n  } catch (error) {\n    return {\n      year: \"Error\",\n      revenue: \"Error\",\n      ebit: \"Error\",\n      net_income: \"Error\",\n      eps: \"Error\",\n      cash_flow: \"Error\",\n      other_metrics: \"Error\",\n      guidance: \"Error\",\n      key_events: \"Error\",\n      risks: \"Error\",\n      full_summary: \"Failed to process AI response\",\n      processing_date: new Date().toISOString(),\n      _error: error.message,\n      _rawData: JSON.stringify(item, null, 2)\n    };\n  }\n});\n\nreturn processedData;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        496
+      ],
+      "id": "fdf1b053-f671-4635-b18c-30e4db94386c",
+      "name": "Parse Summary"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A",
+          "mode": "list",
+          "cachedResultName": "annual_report_summary_KO",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1596144016,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A/edit#gid=1596144016"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Year",
+              "displayName": "Year",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Revenue",
+              "displayName": "Revenue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "EBIT",
+              "displayName": "EBIT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "NetIncome",
+              "displayName": "NetIncome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "EPS",
+              "displayName": "EPS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CashFlow",
+              "displayName": "CashFlow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "OtherMetrics",
+              "displayName": "OtherMetrics",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Guidance",
+              "displayName": "Guidance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "KeyEvents",
+              "displayName": "KeyEvents",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Risks",
+              "displayName": "Risks",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2096,
+        496
+      ],
+      "id": "5a71c09d-e6c2-49c2-90dd-6cf2e3d40833",
+      "name": "Save to Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0DjlCNPppkvfCeEj",
+          "name": "Google Sheets account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a professional financial analyst specializing in corporate financial forecasting.\nYou are provided with summarized data of last 5 year annual reports of the Coca-Cola Company.\nYour task:\n- Detect trends and patterns across the years.\n- Forecast the company’s key financials for the next fiscal year (Revenue, Net Income, EPS, etc.).\n- Provide a clear rationale explaining the assumptions behind the forecast (growth rates, industry outlook, risks, management tone).\n- Highlight uncertainties and potential downside/upside scenarios."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        1296
+      ],
+      "id": "ffbc97f2-5636-4339-885d-ba3bbbc8d6a4",
+      "name": "Answer User Query"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        464,
+        1296
+      ],
+      "id": "6f6a02f2-b1e9-4e89-bd09-b8f07d0d0411",
+      "name": "Chat Trigger",
+      "webhookId": "babb31f6-16a1-47f2-866d-6ec529b42299"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A",
+          "mode": "list",
+          "cachedResultName": "annual_report_summary_KO",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        1504
+      ],
+      "id": "780c3dc0-c450-4315-96ec-c58439e0b74d",
+      "name": "Fetch Summaries",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0DjlCNPppkvfCeEj",
+          "name": "Google Sheets account 3"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "DeepSeek Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Summarize Article",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Answer User Query",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Answer User Query",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "For Each File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Start": {
+      "main": [
+        [
+          {
+            "node": "List Drive PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Drive PDFs": {
+      "main": [
+        [
+          {
+            "node": "Format File List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format File List": {
+      "main": [
+        [
+          {
+            "node": "For Each File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "For Each File": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text": {
+      "main": [
+        [
+          {
+            "node": "Summarize Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Article": {
+      "main": [
+        [
+          {
+            "node": "Parse Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Summary": {
+      "main": [
+        [
+          {
+            "node": "Save to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Answer User Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Summaries": {
+      "ai_tool": [
+        [
+          {
+            "node": "Answer User Query",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "496e3f89-65e7-413f-a399-ee445a8b9fad",
+  "meta": {
+    "instanceId": "9a11dca52f3f73e39c043b74f1574854490a74c58dbb5910076a77c9046e62c6"
+  },
+  "id": "1CPCUcBkiHy3530s",
+  "tags": []
+}
