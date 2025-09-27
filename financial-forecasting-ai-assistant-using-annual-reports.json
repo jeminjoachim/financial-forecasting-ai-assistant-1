@@ -1,0 +1,613 @@
+{
+  "name": "My workflow 5",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        752,
+        304
+      ],
+      "id": "cc6f7433-afdb-4b82-be6c-557cbe652a4f",
+      "name": "DeepSeek Chat Model",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "ViYmhrE7oBlhugDs",
+          "name": "DeepSeek account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        48,
+        1264
+      ],
+      "id": "dd791bfe-5c01-431d-9150-81f6df9ec274",
+      "name": "DeepSeek Chat Model1",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "ViYmhrE7oBlhugDs",
+          "name": "DeepSeek account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        192,
+        1264
+      ],
+      "id": "297bac84-edab-494b-af18-2194bf84778c",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        240,
+        112
+      ],
+      "id": "08fd27a2-a14f-4a89-80fe-b1b327ba9a96"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        96
+      ],
+      "id": "d39c0a35-007c-4684-a4ff-637f4c4d2581",
+      "name": "Manual Start"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "'17tCD0it4O10ViJbGrEy7X0gED6PpGgQi' in parents and mimeType='application/pdf'"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -640,
+        96
+      ],
+      "id": "94b8335f-5152-4d66-95aa-bbf833830750",
+      "name": "List Drive PDFs",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "7xqqD3WgQNvOvfhD",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = items[0].json.files || [];\nreturn files.map(f => ({ json: f }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        96
+      ],
+      "id": "12aed9c6-181a-4fe1-8d48-3a3b9689fbde",
+      "name": "Format File List"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -208,
+        96
+      ],
+      "id": "62c1035c-622f-4aaa-8dbe-20ee38d537d0",
+      "name": "For Each File"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "65e9f9a6-4c73-489e-828d-3edef1cb06ef",
+      "name": "Download PDF",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "7xqqD3WgQNvOvfhD",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "maxPages": 80
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        528,
+        96
+      ],
+      "id": "8b7bf2be-cd75-43c7-8021-674db23f52ab",
+      "name": "Extract Text"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst processedData = items.map((item) => {\n  try {\n    // Get AI response text (support multiple formats)\n    let aiSummary = '';\n    if (item.json.response?.message?.content) {\n      aiSummary = item.json.response.message.content;\n    } else if (item.json.message?.content) {\n      aiSummary = item.json.message.content;\n    } else if (item.json.output) {\n      aiSummary = item.json.output;\n    } else {\n      aiSummary = JSON.stringify(item.json);\n    }\n\n    // Helper function: extract text between labels\n    function extract(label, text = aiSummary) {\n      const regex = new RegExp(`\\\\*\\\\*${label}:\\\\*\\\\*\\\\s*([\\\\s\\\\S]*?)(?=\\\\n\\\\n|\\\\n\\\\*\\\\*|$)`, \"i\");\n      const match = text.match(regex);\n      return match ? match[1].trim() : \"Not found\";\n    }\n\n    // Extract fields (renamed for financials)\n    const year = extract(\"Year\");\n    const revenue = extract(\"Revenue\");\n    const ebit = extract(\"Operating Income / EBIT\");\n    const netIncome = extract(\"Net Income\");\n    const eps = extract(\"EPS\");\n    const cashFlow = extract(\"Cash Flow\");\n    const otherMetrics = extract(\"Other Key Metrics\");\n    const guidance = extract(\"Management Guidance\");\n    const keyEvents = extract(\"Key Events / Strategic Actions\");\n    const risks = extract(\"Risks / Challenges Noted\");\n\n    return {\n      year: year,\n      revenue: revenue,\n      ebit: ebit,\n      net_income: netIncome,\n      eps: eps,\n      cash_flow: cashFlow,\n      other_metrics: otherMetrics,\n      guidance: guidance,\n      key_events: keyEvents,\n      risks: risks,\n      full_summary: aiSummary,\n      processing_date: new Date().toISOString(),\n      _debug: {\n        summary_length: aiSummary.length,\n        has_year: year !== \"Not found\",\n        has_revenue: revenue !== \"Not found\"\n      }\n    };\n\n  } catch (error) {\n    return {\n      year: \"Error\",\n      revenue: \"Error\",\n      ebit: \"Error\",\n      net_income: \"Error\",\n      eps: \"Error\",\n      cash_flow: \"Error\",\n      other_metrics: \"Error\",\n      guidance: \"Error\",\n      key_events: \"Error\",\n      risks: \"Error\",\n      full_summary: \"Failed to process AI response\",\n      processing_date: new Date().toISOString(),\n      _error: error.message,\n      _rawData: JSON.stringify(item, null, 2)\n    };\n  }\n});\n\nreturn processedData;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        96
+      ],
+      "id": "6ad7314b-2e31-4ea9-9a21-f43c35d01895",
+      "name": "Parse Summary"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A",
+          "mode": "list",
+          "cachedResultName": "annual_report_summary_KO",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1596144016,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A/edit#gid=1596144016"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Year",
+              "displayName": "Year",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Revenue",
+              "displayName": "Revenue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "EBIT",
+              "displayName": "EBIT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "NetIncome",
+              "displayName": "NetIncome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "EPS",
+              "displayName": "EPS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CashFlow",
+              "displayName": "CashFlow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "OtherMetrics",
+              "displayName": "OtherMetrics",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Guidance",
+              "displayName": "Guidance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "KeyEvents",
+              "displayName": "KeyEvents",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Risks",
+              "displayName": "Risks",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1520,
+        96
+      ],
+      "id": "c9f76f69-7796-4347-b509-4fe84e9b5eae",
+      "name": "Save to Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0DjlCNPppkvfCeEj",
+          "name": "Google Sheets account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a professional financial analyst specializing in corporate financial forecasting.\nYou are provided with summarized data of last 5 year annual reports of the Coca-Cola Company.\nYour task:\n- Detect trends and patterns across the years.\n- Forecast the company’s key financials for the next fiscal year (Revenue, Net Income, EPS, etc.).\n- Provide a clear rationale explaining the assumptions behind the forecast (growth rates, industry outlook, risks, management tone).\n- Highlight uncertainties and potential downside/upside scenarios."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        96,
+        1040
+      ],
+      "id": "5e18afc4-b310-4658-8d97-d66a1e81b2c1",
+      "name": "Answer User Query"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -112,
+        1040
+      ],
+      "id": "b9603a01-b06d-4ed0-abae-0f2bba17ab09",
+      "name": "Chat Trigger",
+      "webhookId": "babb31f6-16a1-47f2-866d-6ec529b42299"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A",
+          "mode": "list",
+          "cachedResultName": "annual_report_summary_KO",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xh_lRZQQ9E5qyjz3VEOXDuF-6DCaan6FOY9f_7a_V0A/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        384,
+        1248
+      ],
+      "id": "8655c9aa-caba-479d-8bd9-d02921ef22f6",
+      "name": "Fetch Summaries",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0DjlCNPppkvfCeEj",
+          "name": "Google Sheets account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Financial Forecast Assistant (Annual reports)\n\n### Step-by-step guide:\n--> Add credentials: Google Drive OAuth2, Google Sheets OAuth2, DeepSeek or OpenAI API.\n\n--> Update Google Drive folder ID used in List Drive PDFs (replace the example ID).\n\n--> Verify Google Sheets documentId & sheetName in Save to Sheet point to your sheet.\n\n--> (Optional) Replace the Replace Me noOp node if you need custom pre-processing.\n\n--> Run Manual Start to test: flow = List Drive PDFs → Download PDF → Extract Text → Summarize Reports → Parse Summary → Save to Sheet.\n\nTip: keep PDFs under set maxPages (Extract Text node) and consistent report formatting to improve parsing.",
+        "height": 352,
+        "width": 784
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -432
+      ],
+      "id": "ebddcc98-2633-41f1-9523-29e0a72b6092",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Interactive Financial Ass Forecasting Aistant (Chat Trigger) — Quick Steps\n\n*Purpose: Let a user ask natural questions about the summarized annual reports stored in the Google Sheet; answers are generated by an AI agent that reads the sheet.\n\n--> Before you start: verify the same Google Sheets credential and AI provider are available in n8n.\n\n--> Chat trigger: the When chat message received node exposes a webhook for chat input. Ensure the webhook is active (copy the webhook URL if needed).\n\n--> Test a query: trigger the chat webhook with a question like “Forecast the revenue for 2025 with apt justification.” The agent will fetch rows and respond using the sheet data.\n\nQuick tips / troubleshooting\n--> Chat returns generic answers → ensure the agent’s system prompt instructs it to use only the spreadsheet.\n--> No rows found → confirm sheet documentId/gid and sheet sharing/permissions.",
+        "height": 400,
+        "width": 800
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        544
+      ],
+      "id": "b9ea663a-9a0c-4b09-8831-a7f1035c929d",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a financial analyst. Summarize this annual report {{ $json.text }} into a concise, structured format.\n\nKeep each section short, use bullet points or numbers where possible. If a section is not mentioned, write \"Not available\".\n\n**Year:**  \n**Revenue:**  \n**Operating Income / EBIT:**  \n**Net Income:**  \n**EPS:**  \n**Cash Flow:**  \n**Other Key Metrics (e.g., Debt, Equity, Dividends):**\n\n**Management Guidance:**  \n- Summarize any forward-looking statements, outlook, or guidance given by management.  \n\n**Key Events / Strategic Actions:**  \n- E.g., acquisitions, restructurings, new product launches, regulatory changes.\n\n**Risks / Challenges Noted:**  \n- Key risks or uncertainties highlighted in the report.\n\nKeep the total output under ~300 words.",
+        "options": {
+          "systemMessage": "You are a professional financial analyst specializing in corporate financial analysis.\n\nYour task:\n- Analyze the company’s annual reports (provided in the input).\n- Extract structured historical financial data (Revenue, Operating Income, Net Income, EPS, Cash Flow, etc.).\n- Identify and summarize any management guidance, commentary, or forward-looking statements."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        816,
+        96
+      ],
+      "id": "d49829f5-8541-4ac7-9f46-a0fefc0d1c78",
+      "name": "Summarize Annual Reports"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "DeepSeek Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Summarize Annual Reports",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Answer User Query",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Answer User Query",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "For Each File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Start": {
+      "main": [
+        [
+          {
+            "node": "List Drive PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Drive PDFs": {
+      "main": [
+        [
+          {
+            "node": "Format File List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format File List": {
+      "main": [
+        [
+          {
+            "node": "For Each File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "For Each File": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text": {
+      "main": [
+        [
+          {
+            "node": "Summarize Annual Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Summary": {
+      "main": [
+        [
+          {
+            "node": "Save to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Answer User Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Summaries": {
+      "ai_tool": [
+        [
+          {
+            "node": "Answer User Query",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Annual Reports": {
+      "main": [
+        [
+          {
+            "node": "Parse Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f23ecfd9-5368-4b89-9bcd-817921654ebf",
+  "meta": {
+    "instanceId": "9a11dca52f3f73e39c043b74f1574854490a74c58dbb5910076a77c9046e62c6"
+  },
+  "id": "En3ViBtuTjFhDjfe",
+  "tags": []
+}
